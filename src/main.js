@@ -1,5 +1,5 @@
-import './fonts/ys-display/fonts.css';
 import './style.css';
+import './fonts/ys-display/fonts.css';
 
 import { data as sourceData } from "./data/dataset_1.js";
 import { initData } from "./data.js";
@@ -14,24 +14,31 @@ import { initSearching } from "./components/searching.js";
 const api = initData(sourceData);
 
 function collectState() {
-    const state = processFormData(new FormData(sampleTable.container));
-    const rowsPerPage = parseInt(state.rowsPerPage);
-    const page = parseInt(state.page ?? 1);
+    const form = document.querySelector('form[name="table"]');
+    if (!form) return { rowsPerPage: 10, page: 1 };
+    
+    const state = processFormData(new FormData(form));
+    const rowsPerPage = parseInt(state.rowsPerPage) || 10;
+    const page = parseInt(state.page) || 1;
     return { ...state, rowsPerPage, page };
 }
 
 async function render(action) {
-    let state = collectState();
-    let query = {};
+    try {
+        let state = collectState();
+        let query = {};
 
-    query = applySearching(query, state, action);
-    query = applyFiltering(query, state, action);
-    query = applySorting(query, state, action);
-    query = applyPagination(query, state, action);
+        query = applySearching(query, state, action);
+        query = applyFiltering(query, state, action);
+        query = applySorting(query, state, action);
+        query = applyPagination(query, state, action);
 
-    const { total, items } = await api.getRecords(query);
-    updatePagination(total, query);
-    sampleTable.render(items);
+        const { total, items } = await api.getRecords(query);
+        updatePagination(total, query);
+        sampleTable.render(items);
+    } catch (error) {
+        console.error('Render error:', error);
+    }
 }
 
 const sampleTable = initTable({
@@ -55,22 +62,32 @@ const { applyPagination, updatePagination } = initPagination(
     (el, page, isCurrent) => {
         const input = el.querySelector('input');
         const label = el.querySelector('span');
-        input.value = page;
-        input.checked = isCurrent;
-        label.textContent = page;
+        if (input && label) {
+            input.value = page;
+            input.checked = isCurrent;
+            label.textContent = page;
+        }
         return el;
     }
 );
 
 async function init() {
-    const indexes = await api.getIndexes();
-    updateIndexes(sampleTable.filter.elements, {
-        searchBySeller: indexes.sellers
-    });
-    render();
+    try {
+        const indexes = await api.getIndexes();
+        if (sampleTable.filter && sampleTable.filter.elements) {
+            updateIndexes(sampleTable.filter.elements, {
+                searchBySeller: indexes.sellers
+            });
+        }
+        await render();
+    } catch (error) {
+        console.error('Init error:', error);
+    }
 }
 
 init();
 
 const appRoot = document.querySelector('#app');
-appRoot.appendChild(sampleTable.container);
+if (appRoot && sampleTable.container) {
+    appRoot.appendChild(sampleTable.container);
+}
